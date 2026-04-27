@@ -6,6 +6,8 @@ import {
   Upload, Database, AlertTriangle, CheckCircle2, Eye, Filter, Download, Info, ChevronDown,
 } from "lucide-react";
 
+import { analyzeDataset, uploadDataset, type AnalyzeResponse } from "../../api/client";
+
 const COLORS = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
 
 const sampleDataset = {
@@ -70,6 +72,45 @@ export function DatasetAnalysis() {
   const [uploaded, setUploaded] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "distribution" | "bias">("overview");
   const [dragOver, setDragOver] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [datasetId, setDatasetId] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<AnalyzeResponse | null>(null);
+  const [loading, setLoading] = useState<"idle" | "upload" | "analyze">("idle");
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleUpload() {
+    if (!selectedFile) return;
+    setError(null);
+    setLoading("upload");
+    setAnalysis(null);
+    try {
+      const res = await uploadDataset(selectedFile);
+      setDatasetId(res.dataset_id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setLoading("idle");
+    }
+  }
+
+  async function handleAnalyze() {
+    if (!datasetId) return;
+    setError(null);
+    setLoading("analyze");
+    try {
+      const res = await analyzeDataset({
+        dataset_id: datasetId,
+        target_column: "label",
+        sensitive_attribute: "gender",
+        prediction_column: "prediction",
+      });
+      setAnalysis(res);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Analyze failed");
+    } finally {
+      setLoading("idle");
+    }
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -77,6 +118,79 @@ export function DatasetAnalysis() {
       <div>
         <h1 className="text-2xl text-white">Dataset Analysis</h1>
         <p className="text-gray-400 text-sm mt-1">Upload, inspect, and detect bias in training datasets before model training</p>
+      </div>
+
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-white">Backend Analysis (Upload → Analyze)</p>
+            <p className="text-gray-400 text-sm mt-1">Uploads CSV to FastAPI and runs fairness metrics.</p>
+          </div>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <input
+              type="file"
+              accept=".csv"
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                setSelectedFile(f);
+                setDatasetId(null);
+                setAnalysis(null);
+                setError(null);
+              }}
+              className="text-sm text-gray-300"
+            />
+
+            <button
+              onClick={handleUpload}
+              disabled={!selectedFile || loading !== "idle"}
+              className="text-sm text-white bg-blue-600 disabled:opacity-50 px-3 py-1.5 rounded-lg"
+            >
+              {loading === "upload" ? "Uploading..." : "Upload"}
+            </button>
+
+            <button
+              onClick={handleAnalyze}
+              disabled={!datasetId || loading !== "idle"}
+              className="text-sm text-white bg-violet-600 disabled:opacity-50 px-3 py-1.5 rounded-lg"
+            >
+              {loading === "analyze" ? "Analyzing..." : "Analyze"}
+            </button>
+          </div>
+        </div>
+
+        {datasetId && (
+          <p className="text-xs text-gray-400 mt-3">
+            dataset_id: <span className="text-gray-200 font-mono">{datasetId}</span>
+          </p>
+        )}
+
+        {error && (
+          <p className="text-xs text-red-300 mt-3 break-words">{error}</p>
+        )}
+
+        {analysis && (
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="bg-gray-950 border border-gray-800 rounded-xl p-4">
+              <p className="text-xs text-gray-400">Bias Detected</p>
+              <p className={analysis.bias_detected ? "text-red-400 text-lg" : "text-emerald-400 text-lg"}>
+                {analysis.bias_detected ? "Yes" : "No"}
+              </p>
+            </div>
+            <div className="bg-gray-950 border border-gray-800 rounded-xl p-4">
+              <p className="text-xs text-gray-400">Demographic Parity (diff)</p>
+              <p className="text-white text-lg">{analysis.demographic_parity.difference.toFixed(3)}</p>
+            </div>
+            <div className="bg-gray-950 border border-gray-800 rounded-xl p-4">
+              <p className="text-xs text-gray-400">Equal Opportunity (diff)</p>
+              <p className="text-white text-lg">{analysis.equal_opportunity.difference.toFixed(3)}</p>
+            </div>
+            <div className="bg-gray-950 border border-gray-800 rounded-xl p-4">
+              <p className="text-xs text-gray-400">Disparate Impact (min ratio)</p>
+              <p className="text-white text-lg">{analysis.disparate_impact.min_ratio.toFixed(3)}</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Upload Zone */}

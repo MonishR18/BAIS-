@@ -126,8 +126,8 @@ export function Layout() {
               <User className="w-4 h-4 text-white" />
             </div>
             <div>
-              <p className="text-sm text-white">Dr. Sarah Chen</p>
-              <p className="text-xs text-gray-400">ML Fairness Engineer</p>
+              <p className="text-sm text-white"> Manas</p>
+              <p className="text-xs text-gray-400"> THe EX CR of the class</p>
             </div>
           </div>
         </header>
