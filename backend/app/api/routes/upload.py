@@ -1,43 +1,41 @@
-from __future__ import annotations
-
+from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
 from pathlib import Path
 from uuid import uuid4
-
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
-
-
-_UPLOAD_DIR = Path(__file__).resolve().parents[3] / "data" / "uploads"
-
-
+import joblib
 
 router = APIRouter()
 
+_UPLOAD_DIR = Path(__file__).resolve().parents[3] / "data" / "uploads"
+_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-@router.post("/dataset", status_code=status.HTTP_201_CREATED)
-async def upload_dataset(file: UploadFile = File(...)) -> dict:
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="Missing filename")
-
-    suffix = Path(file.filename).suffix.lower()
-    if suffix != ".csv":
-        raise HTTPException(status_code=400, detail="Only .csv files are supported")
-
+@router.post("/dataset")
+async def upload_dataset(file: UploadFile = File(...)):
+    if not file.filename.endswith(".csv") and not file.filename.endswith(".json"):
+        raise HTTPException(status_code=400, detail="Only CSV/JSON allowed")
+        
     dataset_id = uuid4().hex
-    _UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    dest = _UPLOAD_DIR / f"{dataset_id}.csv"
+    dest = _UPLOAD_DIR / f"{dataset_id}_{file.filename}"
+    
+    content = await file.read()
+    dest.write_bytes(content)
+    
+    return {"dataset_id": f"{dataset_id}_{file.filename}", "message": "Dataset uploaded successfully"}
 
+@router.post("/model")
+async def upload_model(file: UploadFile = File(...)):
+    if not file.filename.endswith(".pkl") and not file.filename.endswith(".joblib"):
+        raise HTTPException(status_code=400, detail="Only .pkl or .joblib allowed")
+        
+    model_id = uuid4().hex
+    dest = _UPLOAD_DIR / f"{model_id}_{file.filename}"
+    
+    content = await file.read()
+    dest.write_bytes(content)
+    
     try:
-        content = await file.read()
-        if not content:
-            raise HTTPException(status_code=400, detail="Uploaded file is empty")
-        dest.write_bytes(content)
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail="Failed to store uploaded file") from exc
-
-    return {
-        "dataset_id": dataset_id,
-        "filename": file.filename,
-        "stored_path": str(dest),
-    }
+        joblib.load(dest)
+    except Exception as e:
+        dest.unlink()
+        raise HTTPException(status_code=400, detail=f"Invalid model file: {e}")
+        
+    return {"model_id": f"{model_id}_{file.filename}", "message": "Model loaded securely"}

@@ -5,7 +5,7 @@ import {
 import {
   Upload, Database, AlertTriangle, CheckCircle2, Eye, Filter, Download, Info, ChevronDown,
 } from "lucide-react";
-
+import { useAppContext } from "../context/AppContext";
 import { analyzeDataset, uploadDataset, type AnalyzeResponse } from "../../api/client";
 
 const COLORS = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
@@ -69,14 +69,14 @@ const typeColors: Record<string, string> = {
 };
 
 export function DatasetAnalysis() {
-  const [uploaded, setUploaded] = useState(true);
+  const { datasetId, setDatasetId, fileName, setFileName } = useAppContext();
   const [activeTab, setActiveTab] = useState<"overview" | "distribution" | "bias">("overview");
   const [dragOver, setDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [datasetId, setDatasetId] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<AnalyzeResponse | null>(null);
   const [loading, setLoading] = useState<"idle" | "upload" | "analyze">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   async function handleUpload() {
     if (!selectedFile) return;
@@ -86,6 +86,7 @@ export function DatasetAnalysis() {
     try {
       const res = await uploadDataset(selectedFile);
       setDatasetId(res.dataset_id);
+      setFileName(res.filename || selectedFile.name);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
     } finally {
@@ -111,6 +112,34 @@ export function DatasetAnalysis() {
       setLoading("idle");
     }
   }
+
+  const handleUploadFile = async (file: File) => {
+    setIsUploading(true);
+    try {
+      const res = await uploadDataset(file);
+      setDatasetId(res.dataset_id);
+      setFileName(res.filename || file.name);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to upload dataset.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      await handleUploadFile(e.target.files[0]);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      await handleUploadFile(e.dataTransfer.files[0]);
+    }
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -194,19 +223,20 @@ export function DatasetAnalysis() {
       </div>
 
       {/* Upload Zone */}
-      {!uploaded ? (
+      {!datasetId ? (
         <div
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
-          onDrop={(e) => { e.preventDefault(); setDragOver(false); setUploaded(true); }}
+          onDrop={handleDrop}
           className={`border-2 border-dashed rounded-xl p-12 text-center transition-colors ${dragOver ? "border-violet-500 bg-violet-500/5" : "border-gray-700 hover:border-gray-600"}`}
         >
           <Upload className="w-12 h-12 text-gray-500 mx-auto mb-4" />
-          <p className="text-white mb-1">Drag & drop your dataset here</p>
-          <p className="text-gray-400 text-sm mb-4">Supports CSV, Parquet, JSON, Excel (max 500MB)</p>
-          <button onClick={() => setUploaded(true)} className="bg-violet-600 hover:bg-violet-500 text-white text-sm px-6 py-2.5 rounded-lg transition-colors">
-            Browse Files
-          </button>
+          <p className="text-white mb-1">{isUploading ? "Uploading..." : "Drag & drop your dataset here"}</p>
+          <p className="text-gray-400 text-sm mb-4">Supports CSV (max 500MB)</p>
+          <label className="bg-violet-600 hover:bg-violet-500 text-white text-sm px-6 py-2.5 rounded-lg transition-colors cursor-pointer inline-block">
+            {isUploading ? "Please wait..." : "Browse Files"}
+            <input type="file" className="hidden" accept=".csv" onChange={handleFileChange} disabled={isUploading} />
+          </label>
         </div>
       ) : (
         <>
@@ -218,13 +248,13 @@ export function DatasetAnalysis() {
                   <Database className="w-6 h-6 text-blue-400" />
                 </div>
                 <div>
-                  <h2 className="text-white">{sampleDataset.name}</h2>
-                  <p className="text-gray-400 text-sm">Source: {sampleDataset.source}</p>
+                  <h2 className="text-white">{fileName || sampleDataset.name}</h2>
+                  <p className="text-gray-400 text-sm">Source: Uploaded File</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => setUploaded(false)}
+                  onClick={() => setDatasetId(null)}
                   className="text-sm text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 px-3 py-1.5 rounded-lg transition-colors"
                 >
                   Change

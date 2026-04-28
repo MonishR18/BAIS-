@@ -1,37 +1,35 @@
-from fastapi import APIRouter, HTTPException, status
-
-from app.core.security import create_access_token, hash_password, verify_password
-from app.models.user import User
-from app.schemas.user_schema import TokenResponse, UserLoginRequest, UserSignupRequest, UserPublic
-
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
+from datetime import timedelta
+from app.core.database import get_db
+from app.core.security import get_password_hash, verify_password, create_access_token
+from app.core.config import settings
+from app.models.user import User, UserRole
+from app.schemas.user_schema import UserCreate, UserResponse, Token
 
 router = APIRouter()
 
+@router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+def signup(user: UserCreate, db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.email == user.email).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    hashed_password = get_password_hash(user.password)
+    new_user = User(email=user.email, hashed_password=hashed_password, role=user.role)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
 
-_users_by_email: dict[str, User] = {}
-
-
-@router.post("/signup", response_model=UserPublic, status_code=status.HTTP_201_CREATED)
-def signup(payload: UserSignupRequest) -> UserPublic:
-    email = payload.email.lower()
-    if email in _users_by_email:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="User already exists",
-        )
-
-    user = User.create(email=email, hashed_password=hash_password(payload.password))
-    _users_by_email[email] = user
-
-    return UserPublic(email=user.email)
-
-
-@router.post("/login", response_model=TokenResponse)
-def login(payload: UserLoginRequest) -> TokenResponse:
-    email = payload.email.lower()
-    user = _users_by_email.get(email)
-    if not user or not verify_password(payload.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-
-    token = create_access_token(subject=user.email)
-    return TokenResponse(access_token=token)
+@router.post("/login", response_model=Token)
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == form_data.username).first()
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Incorrect email or password")
+    
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(subject=user.email, expires_delta=access_token_expires)
+    
+    return {"access_token": access_token, "token_type": "bearer"}

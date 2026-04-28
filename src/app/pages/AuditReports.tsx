@@ -1,54 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   FileText, Download, CheckCircle2, XCircle, AlertTriangle, Clock,
-  Shield, BarChart3, TrendingUp, Eye, Filter,
+  Shield, Eye, Filter, FileDown,
 } from "lucide-react";
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } from "recharts";
-import type { ReactNode } from "react";
+import { fetchReports } from "../../lib/api";
 
-const reports = [
-  {
-    id: "AUD-2847", model: "Loan Approval Classifier v3.2", domain: "Banking",
-    date: "Apr 19, 2026", status: "critical", score: 54,
-    metrics: { dp: "FAIL", eo: "FAIL", eodds: "FAIL", di: "FAIL" },
-    bias_detected: true, mitigated: false,
-  },
-  {
-    id: "AUD-2846", model: "Resume Screener v1.8", domain: "Hiring",
-    date: "Apr 19, 2026", status: "warning", score: 71,
-    metrics: { dp: "WARN", eo: "FAIL", eodds: "WARN", di: "PASS" },
-    bias_detected: true, mitigated: false,
-  },
-  {
-    id: "AUD-2845", model: "Insurance Risk Predictor v2.1", domain: "Insurance",
-    date: "Apr 18, 2026", status: "passed", score: 88,
-    metrics: { dp: "PASS", eo: "PASS", eodds: "PASS", di: "PASS" },
-    bias_detected: false, mitigated: true,
-  },
-  {
-    id: "AUD-2844", model: "Credit Score Engine v4.0", domain: "Banking",
-    date: "Apr 18, 2026", status: "passed", score: 91,
-    metrics: { dp: "PASS", eo: "PASS", eodds: "PASS", di: "PASS" },
-    bias_detected: false, mitigated: true,
-  },
-  {
-    id: "AUD-2843", model: "Patient Triage AI v1.3", domain: "Healthcare",
-    date: "Apr 17, 2026", status: "warning", score: 67,
-    metrics: { dp: "PASS", eo: "FAIL", eodds: "WARN", di: "WARN" },
-    bias_detected: true, mitigated: false,
-  },
-];
-
-const radarDataCritical = [
-  { metric: "Dem. Parity", score: 22 },
-  { metric: "Equal Opp.", score: 35 },
-  { metric: "Eq. Odds", score: 28 },
-  { metric: "Disp. Impact", score: 31 },
-  { metric: "Calibration", score: 58 },
-  { metric: "Ind. Fairness", score: 44 },
-];
-
-const statusConfig: Record<string, { color: string; bg: string; icon: ReactNode; label: string }> = {
+const statusConfig: Record<string, { color: string; bg: string; icon: any; label: string }> = {
   critical: { color: "text-red-400", bg: "bg-red-500/10 border-red-500/30", icon: <XCircle className="w-4 h-4 text-red-400" />, label: "Critical" },
   warning: { color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/30", icon: <AlertTriangle className="w-4 h-4 text-amber-400" />, label: "Warning" },
   passed: { color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/30", icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" />, label: "Passed" },
@@ -61,10 +19,102 @@ const metricStatusStyle: Record<string, string> = {
 };
 
 export function AuditReports() {
-  const [selectedReport, setSelectedReport] = useState(reports[0]);
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedReport, setSelectedReport] = useState<any>(null);
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
-  const filtered = filterStatus === "all" ? reports : reports.filter((r) => r.status === filterStatus);
+  const downloadPDF = async (reportId: string) => {
+    try {
+      // Simulate PDF generation and download
+      const response = await fetch(`http://127.0.0.1:8000/api/v1/reports/${reportId}/pdf`);
+      if (!response.ok) throw new Error("Failed to generate PDF");
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bias-audit-report-${reportId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error("PDF download failed:", error);
+      // Fallback: create a simple text report
+      const reportContent = generateTextReport(selectedReport);
+      const blob = new Blob([reportContent], { type: 'text/plain' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bias-audit-report-${reportId}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    }
+  };
+
+  const generateTextReport = (report: any) => {
+    return `
+BIAS ANALYSIS AND MITIGATION SYSTEM - AUDIT REPORT
+==================================================
+
+Report ID: ${report.id}
+Generated: ${new Date().toLocaleString()}
+Dataset: ${report.dataset}
+Model: ${report.model}
+Status: ${report.status.toUpperCase()}
+
+EXECUTIVE SUMMARY
+-----------------
+Overall Risk Score: ${report.riskScore}
+Compliance Status: ${report.compliance}
+
+FAIRNESS METRICS
+---------------
+Demographic Parity Difference: ${report.metrics.demographicParity}
+Equal Opportunity Difference: ${report.metrics.equalOpportunity}
+Disparate Impact Ratio: ${report.metrics.disparateImpact}
+False Positive Rate Difference: ${report.metrics.fprDifference}
+False Negative Rate Difference: ${report.metrics.fnrDifference}
+
+MITIGATION RESULTS
+-----------------
+Algorithm Applied: ${report.mitigation?.algorithm || 'None'}
+Fairness Improvement: ${report.mitigation?.improvement || 'N/A'}
+Accuracy Impact: ${report.mitigation?.accuracyImpact || 'N/A'}
+
+EXPLAINABILITY INSIGHTS
+----------------------
+Protected Attribute Influence: ${report.explainability?.protectedInfluence || 'N/A'}
+Key Bias Drivers: ${report.explainability?.biasDrivers?.join(', ') || 'None identified'}
+
+RECOMMENDATIONS
+--------------
+${report.recommendations?.join('\n') || 'No specific recommendations provided.'}
+
+---
+Generated by BAIS (Bias Analysis and Mitigation System)
+    `.trim();
+  };
+
+  useEffect(() => {
+    fetchReports()
+      .then((res) => {
+        setData(res);
+        if (res.reports.length > 0) setSelectedReport(res.reports[0]);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading || !data || !selectedReport) {
+    return <div className="p-6 text-white">Loading reports...</div>;
+  }
+
+  const { reports, radarDataCritical } = data;
+  const filtered = filterStatus === "all" ? reports : reports.filter((r: any) => r.status === filterStatus);
 
   return (
     <div className="p-6 space-y-6">
@@ -83,9 +133,9 @@ export function AuditReports() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: "Total Reports", value: reports.length, icon: FileText, color: "violet" },
-          { label: "Critical Issues", value: reports.filter(r => r.status === "critical").length, icon: XCircle, color: "red" },
-          { label: "Warnings", value: reports.filter(r => r.status === "warning").length, icon: AlertTriangle, color: "amber" },
-          { label: "Passed", value: reports.filter(r => r.status === "passed").length, icon: CheckCircle2, color: "emerald" },
+          { label: "Critical Issues", value: reports.filter((r: any) => r.status === "critical").length, icon: XCircle, color: "red" },
+          { label: "Warnings", value: reports.filter((r: any) => r.status === "warning").length, icon: AlertTriangle, color: "amber" },
+          { label: "Passed", value: reports.filter((r: any) => r.status === "passed").length, icon: CheckCircle2, color: "emerald" },
         ].map((s) => (
           <div key={s.label} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
             <div className="flex items-center justify-between mb-2">
@@ -113,7 +163,7 @@ export function AuditReports() {
               <option value="passed">Passed</option>
             </select>
           </div>
-          {filtered.map((report) => {
+          {filtered.map((report: any) => {
             const sc = statusConfig[report.status];
             return (
               <button

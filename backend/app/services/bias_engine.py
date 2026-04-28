@@ -93,11 +93,14 @@ class BiasEngine:
         demographic_parity = self._demographic_parity(df, sensitive_attribute, prediction_column)
         equal_opportunity = self._equal_opportunity(df, sensitive_attribute, target_column, prediction_column)
         disparate_impact = self._disparate_impact(df, sensitive_attribute, prediction_column)
+        fpr = self._false_positive_rate(df, sensitive_attribute, target_column, prediction_column)
+        fnr = self._false_negative_rate(df, sensitive_attribute, target_column, prediction_column)
 
         bias_detected = (
             disparate_impact.min_ratio < 0.8
             or demographic_parity.difference > 0.1
             or equal_opportunity.difference > 0.1
+            or fpr.difference > 0.1
         )
 
         return {
@@ -116,6 +119,14 @@ class BiasEngine:
                 "reference_group": disparate_impact.reference_group,
                 "ratios": disparate_impact.ratios,
                 "min_ratio": disparate_impact.min_ratio,
+            },
+            "false_positive_rate": {
+                "by_group": fpr.by_group,
+                "difference": fpr.difference,
+            },
+            "false_negative_rate": {
+                "by_group": fnr.by_group,
+                "difference": fnr.difference,
             },
             "bias_detected": bias_detected,
         }
@@ -237,3 +248,24 @@ class BiasEngine:
             ratios=ratios,
             min_ratio=min_ratio,
         )
+
+    def _false_positive_rate(self, df: pd.DataFrame, sensitive_attribute: str, target_column: str, prediction_column: str) -> BiasMetricResult:
+        df_neg = df[df[target_column] == 0]
+        if df_neg.empty:
+            return BiasMetricResult(by_group={}, difference=0.0)
+        rates = df_neg.groupby(sensitive_attribute)[prediction_column].mean().to_dict()
+        by_group = {str(k): float(v) for k, v in rates.items()}
+        values = list(by_group.values())
+        difference = float(np.max(values) - np.min(values)) if values else 0.0
+        return BiasMetricResult(by_group=by_group, difference=difference)
+
+    def _false_negative_rate(self, df: pd.DataFrame, sensitive_attribute: str, target_column: str, prediction_column: str) -> BiasMetricResult:
+        df_pos = df[df[target_column] == 1]
+        if df_pos.empty:
+            return BiasMetricResult(by_group={}, difference=0.0)
+        rates = df_pos.groupby(sensitive_attribute).apply(lambda g: 1.0 - g[prediction_column].mean()).to_dict()
+        by_group = {str(k): float(v) for k, v in rates.items()}
+        values = list(by_group.values())
+        difference = float(np.max(values) - np.min(values)) if values else 0.0
+        return BiasMetricResult(by_group=by_group, difference=difference)
+

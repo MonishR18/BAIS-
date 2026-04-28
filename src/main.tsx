@@ -1,7 +1,15 @@
 
-  import { createRoot } from "react-dom/client";
-  import App from "./app/App.tsx";
-  import "./styles/index.css";
+import { createRoot } from "react-dom/client";
+import App from "./app/App.tsx";
+import "./styles/index.css";
+import { AppProvider } from "./app/context/AppContext.tsx";
+import { AuthProvider } from "./app/context/AuthContext.tsx";
 
-  createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(
+  <AuthProvider>
+    <AppProvider>
+      <App />
+    </AppProvider>
+  </AuthProvider>
+);
   

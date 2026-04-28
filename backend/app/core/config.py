@@ -1,27 +1,16 @@
 import os
-from dotenv import load_dotenv
+from pydantic_settings import BaseSettings
 
+class Settings(BaseSettings):
+    DATABASE_URL: str = "sqlite:///./bais.db"
+    
+    JWT_SECRET_KEY: str = "your-super-secret-production-key-here"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
+    
+    ALLOWED_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 
-load_dotenv()
-
-
-class Settings:
-    def __init__(self) -> None:
-        self.app_name: str = os.getenv(
-            "APP_NAME", "Bias Analysis and Mitigation System (BAIS)"
-        )
-        self.api_v1_prefix: str = os.getenv("API_V1_PREFIX", "/api/v1")
-
-        self.jwt_secret_key: str = os.getenv("JWT_SECRET_KEY", "change-me")
-        self.jwt_algorithm: str = os.getenv("JWT_ALGORITHM", "HS256")
-        self.access_token_expire_minutes: int = int(
-            os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
-        )
-
-        allowed = os.getenv("ALLOWED_ORIGINS", "")
-        self.allowed_origins: list[str] = [
-            origin.strip() for origin in allowed.split(",") if origin.strip()
-        ]
-
+    class Config:
+        env_file = ".env"
 
 settings = Settings()

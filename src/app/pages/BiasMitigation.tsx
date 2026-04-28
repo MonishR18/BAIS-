@@ -3,26 +3,11 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine,
 } from "recharts";
 import { CheckCircle2, AlertTriangle, ArrowRight, Settings2, Zap, BarChart2, ChevronDown, ChevronUp } from "lucide-react";
+import { mitigateBias } from "../../lib/api";
+import { useAppContext } from "../context/AppContext";
 
 type Phase = "pre" | "in" | "post";
 type Algorithm = string | null;
-
-const beforeAfterData = [
-  { metric: "DPD", before: 0.191, after: 0.032, threshold: 0.05 },
-  { metric: "EOD", before: 0.180, after: 0.028, threshold: 0.05 },
-  { metric: "ΔTPR", before: 0.180, after: 0.031, threshold: 0.05 },
-  { metric: "ΔFPR", before: 0.040, after: 0.012, threshold: 0.05 },
-  { metric: "DI", before: 0.37, after: 0.84, threshold: 0.80 },
-];
-
-const accuracyTradeoff = [
-  { algo: "Baseline", accuracy: 87.2, fairness: 42.0 },
-  { algo: "Reweighing", accuracy: 84.5, fairness: 76.0 },
-  { algo: "LFR", accuracy: 83.1, fairness: 81.0 },
-  { algo: "Adversarial", accuracy: 82.8, fairness: 84.0 },
-  { algo: "Reject Option", accuracy: 83.7, fairness: 79.0 },
-  { algo: "Calibrated EO", accuracy: 85.2, fairness: 77.0 },
-];
 
 interface AlgoCardProps {
   title: string;
@@ -189,9 +174,13 @@ const postMethods = [
 ];
 
 export function BiasMitigation() {
+  const { datasetId, targetColumn, sensitiveAttribute, predictionColumn } = useAppContext();
   const [activePhase, setActivePhase] = useState<Phase>("pre");
   const [selectedAlgo, setSelectedAlgo] = useState<Algorithm>("reweighing");
   const [applied, setApplied] = useState(false);
+  const [isMitigating, setIsMitigating] = useState(false);
+  const [mitigationResult, setMitigationResult] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const currentMethods = activePhase === "pre" ? preMethods : activePhase === "in" ? inMethods : postMethods;
 
@@ -201,6 +190,30 @@ export function BiasMitigation() {
     { id: "post", label: "Post-processing", icon: BarChart2, desc: "Adjust predictions after model training" },
   ];
 
+  const handleApply = async () => {
+    if (!datasetId) {
+      setError("Please upload a dataset in the Dataset Analysis tab first.");
+      return;
+    }
+    setIsMitigating(true);
+    setError(null);
+    try {
+      const res = await mitigateBias({
+        dataset_id: datasetId,
+        algorithm: selectedAlgo || "reweighing",
+        target_column: targetColumn,
+        sensitive_attribute: sensitiveAttribute,
+        prediction_column: predictionColumn,
+      });
+      setMitigationResult(res);
+      setApplied(true);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsMitigating(false);
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -209,6 +222,12 @@ export function BiasMitigation() {
           Apply algorithmic fairness interventions across the ML pipeline — before, during, or after training
         </p>
       </div>
+
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-4 rounded-xl text-sm">
+          {error}
+        </div>
+      )}
 
       {/* Phase Selector */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -256,9 +275,7 @@ export function BiasMitigation() {
             <div>
               <label className="block text-xs text-gray-400 mb-2">Protected Attribute</label>
               <select className="w-full bg-gray-800 border border-gray-700 text-white text-sm rounded-lg px-3 py-2 outline-none">
-                <option>sex</option>
-                <option>race</option>
-                <option>sex + race</option>
+                <option value={sensitiveAttribute}>{sensitiveAttribute}</option>
               </select>
             </div>
             <div>
@@ -280,23 +297,23 @@ export function BiasMitigation() {
             </div>
           </div>
           <button
-            onClick={() => setApplied(true)}
-            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white text-sm px-6 py-2.5 rounded-lg transition-colors"
+            onClick={handleApply}
+            disabled={isMitigating}
+            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white text-sm px-6 py-2.5 rounded-lg transition-colors disabled:opacity-50"
           >
             <Zap className="w-4 h-4" />
-            Apply Mitigation
+            {isMitigating ? "Applying..." : "Apply Mitigation"}
           </button>
         </div>
       )}
 
       {/* Results */}
-      {applied && (
+      {applied && mitigationResult && (
         <div className="space-y-4">
           <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
             <CheckCircle2 className="w-5 h-5 text-emerald-400" />
             <div>
-              <p className="text-emerald-300 text-sm font-medium">Mitigation Applied Successfully</p>
-              <p className="text-gray-400 text-xs mt-0.5">All fairness metrics now within acceptable thresholds. Accuracy dropped from 87.2% → 84.5%</p>
+              <p className="text-emerald-300 text-sm font-medium">{mitigationResult.message}</p>
             </div>
           </div>
 
@@ -304,7 +321,7 @@ export function BiasMitigation() {
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
               <h2 className="text-white mb-4">Before vs After Mitigation</h2>
               <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={beforeAfterData}>
+                <BarChart data={mitigationResult.beforeAfterData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                   <XAxis dataKey="metric" stroke="#4b5563" tick={{ fill: "#9ca3af", fontSize: 12 }} />
                   <YAxis stroke="#4b5563" tick={{ fill: "#9ca3af", fontSize: 12 }} />
@@ -322,10 +339,10 @@ export function BiasMitigation() {
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
               <h2 className="text-white mb-4">Accuracy–Fairness Tradeoff</h2>
               <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={accuracyTradeoff}>
+                <BarChart data={mitigationResult.accuracyTradeoff}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                   <XAxis dataKey="algo" stroke="#4b5563" tick={{ fill: "#9ca3af", fontSize: 10 }} />
-                  <YAxis stroke="#4b5563" tick={{ fill: "#9ca3af", fontSize: 12 }} domain={[70, 95]} />
+                  <YAxis stroke="#4b5563" tick={{ fill: "#9ca3af", fontSize: 12 }} domain={[70, 100]} />
                   <Tooltip contentStyle={{ backgroundColor: "#111827", border: "1px solid #374151", borderRadius: "8px" }} itemStyle={{ color: "#d1d5db" }} />
                   <Bar dataKey="accuracy" fill="#3b82f6" name="Accuracy (%)" radius={[4, 4, 0, 0]} fillOpacity={0.8} />
                   <Bar dataKey="fairness" fill="#8b5cf6" name="Fairness Score" radius={[4, 4, 0, 0]} fillOpacity={0.8} />

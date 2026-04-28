@@ -1,73 +1,15 @@
+import { useState, useEffect } from "react";
 import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  RadarChart,
-  Radar,
-  PolarGrid,
-  PolarAngleAxis,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PolarRadiusAxis,
+  AreaChart, Area, BarChart, Bar, RadarChart, Radar, PolarGrid,
+  PolarAngleAxis, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, PolarRadiusAxis,
 } from "recharts";
 import {
-  Shield,
-  AlertTriangle,
-  CheckCircle2,
-  TrendingDown,
-  Database,
-  FileText,
-  Zap,
-  Activity,
-  ArrowRight,
-  Clock,
+  Shield, AlertTriangle, CheckCircle2, TrendingDown,
+  Database, FileText, Zap, Activity, ArrowRight, Clock,
 } from "lucide-react";
 import { Link } from "react-router";
-
-const auditTrendData = [
-  { month: "Oct", passed: 12, failed: 5, total: 17 },
-  { month: "Nov", passed: 15, failed: 4, total: 19 },
-  { month: "Dec", passed: 18, failed: 6, total: 24 },
-  { month: "Jan", passed: 22, failed: 3, total: 25 },
-  { month: "Feb", passed: 28, failed: 4, total: 32 },
-  { month: "Mar", passed: 31, failed: 2, total: 33 },
-  { month: "Apr", passed: 35, failed: 3, total: 38 },
-];
-
-const metricsRadarData = [
-  { metric: "Demographic Parity", score: 68 },
-  { metric: "Equal Opportunity", score: 82 },
-  { metric: "Equalized Odds", score: 74 },
-  { metric: "Disparate Impact", score: 79 },
-  { metric: "Predictive Parity", score: 85 },
-  { metric: "Calibration", score: 71 },
-];
-
-const biasDistributionData = [
-  { domain: "Hiring", high: 4, medium: 8, low: 12 },
-  { domain: "Banking", high: 3, medium: 6, low: 9 },
-  { domain: "Healthcare", high: 2, medium: 5, low: 11 },
-  { domain: "Education", high: 1, medium: 4, low: 14 },
-];
-
-const recentAudits = [
-  { id: "AUD-2847", model: "Loan Approval v3.2", domain: "Banking", status: "critical", score: 54, time: "2h ago" },
-  { id: "AUD-2846", model: "Resume Screener v1.8", domain: "Hiring", status: "warning", score: 71, time: "5h ago" },
-  { id: "AUD-2845", model: "Risk Predictor v2.1", domain: "Insurance", status: "passed", score: 88, time: "1d ago" },
-  { id: "AUD-2844", model: "Credit Score Engine", domain: "Banking", status: "passed", score: 91, time: "1d ago" },
-  { id: "AUD-2843", model: "Patient Triage AI", domain: "Healthcare", status: "warning", score: 67, time: "2d ago" },
-];
-
-const statCards = [
-  { label: "Total Audits", value: "1,247", change: "+12%", icon: Shield, color: "violet" },
-  { label: "Bias Detected", value: "342", change: "-8%", icon: AlertTriangle, color: "amber" },
-  { label: "Passed Audits", value: "905", change: "+18%", icon: CheckCircle2, color: "emerald" },
-  { label: "Avg. Fairness Score", value: "76.4", change: "+3.2", icon: TrendingDown, color: "blue" },
-];
+import { fetchDashboardStats } from "../../lib/api";
 
 const statusConfig: Record<string, { label: string; color: string; bg: string }> = {
   critical: { label: "Critical", color: "text-red-400", bg: "bg-red-500/10 border-red-500/30" },
@@ -76,6 +18,29 @@ const statusConfig: Record<string, { label: string; color: string; bg: string }>
 };
 
 export function Dashboard() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchDashboardStats()
+      .then(setData)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading || !data) {
+    return <div className="p-6 text-white">Loading dashboard...</div>;
+  }
+
+  const { auditTrendData, metricsRadarData, biasDistributionData, recentAudits, statCards } = data;
+
+  const iconMap: Record<string, any> = {
+    "Total Audits": Shield,
+    "Bias Detected": AlertTriangle,
+    "Passed Audits": CheckCircle2,
+    "Avg. Fairness Score": TrendingDown,
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -103,30 +68,33 @@ export function Dashboard() {
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map((card) => (
-          <div key={card.label} className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-gray-400 text-sm">{card.label}</p>
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
-                card.color === "violet" ? "bg-violet-500/10" :
-                card.color === "amber" ? "bg-amber-500/10" :
-                card.color === "emerald" ? "bg-emerald-500/10" :
-                "bg-blue-500/10"
-              }`}>
-                <card.icon className={`w-4 h-4 ${
-                  card.color === "violet" ? "text-violet-400" :
-                  card.color === "amber" ? "text-amber-400" :
-                  card.color === "emerald" ? "text-emerald-400" :
-                  "text-blue-400"
-                }`} />
+        {statCards.map((card: any) => {
+          const IconComponent = iconMap[card.label] || Shield;
+          return (
+            <div key={card.label} className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-gray-400 text-sm">{card.label}</p>
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                  card.color === "violet" ? "bg-violet-500/10" :
+                  card.color === "amber" ? "bg-amber-500/10" :
+                  card.color === "emerald" ? "bg-emerald-500/10" :
+                  "bg-blue-500/10"
+                }`}>
+                  <IconComponent className={`w-4 h-4 ${
+                    card.color === "violet" ? "text-violet-400" :
+                    card.color === "amber" ? "text-amber-400" :
+                    card.color === "emerald" ? "text-emerald-400" :
+                    "text-blue-400"
+                  }`} />
+                </div>
               </div>
+              <p className="text-2xl text-white mb-1">{card.value}</p>
+              <p className={`text-xs ${card.change.startsWith("+") && card.label !== "Bias Detected" ? "text-emerald-400" : card.change.startsWith("-") && card.label === "Bias Detected" ? "text-emerald-400" : "text-amber-400"}`}>
+                {card.change} vs last month
+              </p>
             </div>
-            <p className="text-2xl text-white mb-1">{card.value}</p>
-            <p className={`text-xs ${card.change.startsWith("+") && card.label !== "Bias Detected" ? "text-emerald-400" : card.change.startsWith("-") && card.label === "Bias Detected" ? "text-emerald-400" : "text-amber-400"}`}>
-              {card.change} vs last month
-            </p>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Charts Row 1 */}
@@ -226,7 +194,7 @@ export function Dashboard() {
             </Link>
           </div>
           <div className="space-y-3">
-            {recentAudits.map((audit) => {
+            {recentAudits.map((audit: any) => {
               const sc = statusConfig[audit.status];
               return (
                 <div key={audit.id} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg border border-gray-700/50 hover:border-gray-600/50 transition-colors">

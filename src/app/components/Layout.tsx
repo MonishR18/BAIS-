@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Outlet, NavLink, useLocation } from "react-router";
+import { Outlet, NavLink, useLocation, useNavigate } from "react-router";
 import {
   LayoutDashboard,
   Database,
@@ -16,14 +16,18 @@ import {
   User,
   AlertTriangle,
   CheckCircle2,
+  Settings,
+  LogOut,
 } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 
 const navItems = [
   { path: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { path: "/dataset", label: "Dataset Analysis", icon: Database },
   { path: "/metrics", label: "Fairness Metrics", icon: BarChart3 },
   { path: "/mitigation", label: "Bias Mitigation", icon: Shield },
-  { path: "/model-analysis", label: "Model Analysis", icon: Brain },
+  { path: "/explainability", label: "Explainability", icon: Brain },
+  { path: "/simulation", label: "Simulation", icon: Settings },
   { path: "/reports", label: "Audit Reports", icon: FileText },
   { path: "/architecture", label: "Architecture", icon: Network },
   { path: "/applications", label: "Applications", icon: Globe2 },
@@ -32,6 +36,14 @@ const navItems = [
 export function Layout() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [showUserMenu, setShowUserMenu] = useState(false);
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   return (
     <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
@@ -122,12 +134,41 @@ export function Layout() {
               <Bell className="w-5 h-5 text-gray-400 cursor-pointer hover:text-white transition-colors" />
               <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs flex items-center justify-center">3</span>
             </div>
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center cursor-pointer">
-              <User className="w-4 h-4 text-white" />
-            </div>
-            <div>
-              <p className="text-sm text-white"> Manas</p>
-              <p className="text-xs text-gray-400"> THe EX CR of the class</p>
+            <div className="relative">
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center gap-3 hover:bg-gray-800 rounded-lg px-2 py-1.5 transition-colors"
+              >
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center">
+                  <User className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm text-white">{user?.name || "User"}</p>
+                  <p className="text-xs text-gray-400">{user?.organization || "ML Engineer"}</p>
+                </div>
+              </button>
+              
+              {showUserMenu && (
+                <div className="absolute right-0 top-full mt-2 w-48 bg-gray-900 border border-gray-800 rounded-lg shadow-lg z-50">
+                  <div className="p-3 border-b border-gray-800">
+                    <p className="text-sm text-white font-medium">{user?.name}</p>
+                    <p className="text-xs text-gray-400">{user?.email}</p>
+                  </div>
+                  <div className="py-2">
+                    <button className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors">
+                      <Settings className="w-4 h-4" />
+                      Settings
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-400 hover:bg-gray-800 hover:text-red-400 transition-colors"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Logout
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </header>

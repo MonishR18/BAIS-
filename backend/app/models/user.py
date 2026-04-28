@@ -1,13 +1,16 @@
-from dataclasses import dataclass
-from uuid import UUID, uuid4
+from sqlalchemy import Column, Integer, String, Enum
+from app.core.database import Base
+import enum
 
+class UserRole(str, enum.Enum):
+    ADMIN = "admin"
+    DATA_SCIENTIST = "data_scientist"
+    AUDITOR = "auditor"
 
-@dataclass(frozen=True)
-class User:
-    id: UUID
-    email: str
-    hashed_password: str
-
-    @staticmethod
-    def create(*, email: str, hashed_password: str) -> "User":
-        return User(id=uuid4(), email=email, hashed_password=hashed_password)
+class User(Base):
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    role = Column(Enum(UserRole), default=UserRole.DATA_SCIENTIST)

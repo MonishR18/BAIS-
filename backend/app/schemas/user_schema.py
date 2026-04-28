@@ -1,20 +1,19 @@
 from pydantic import BaseModel, EmailStr
+from app.models.user import UserRole
 
-
-class UserSignupRequest(BaseModel):
+class UserCreate(BaseModel):
     email: EmailStr
     password: str
+    role: UserRole = UserRole.DATA_SCIENTIST
 
-
-class UserLoginRequest(BaseModel):
+class UserResponse(BaseModel):
+    id: int
     email: EmailStr
-    password: str
+    role: UserRole
 
+    class Config:
+        from_attributes = True
 
-class TokenResponse(BaseModel):
+class Token(BaseModel):
     access_token: str
-    token_type: str = "bearer"
-
-
-class UserPublic(BaseModel):
-    email: EmailStr
+    token_type: str
