@@ -1,0 +1,6 @@
+[tool.pyright]
+extraPaths = ["backend"]
+include = ["backend/app"]
+
+[tool.pylance]
+extraPaths = ["backend"]

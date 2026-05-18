@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine,
 } from "recharts";
 import { CheckCircle2, AlertTriangle, ArrowRight, Settings2, Zap, BarChart2, ChevronDown, ChevronUp } from "lucide-react";
-import { mitigateBias } from "../../lib/api";
+import { mitigateBias } from "../../api/client";
 import { useAppContext } from "../context/AppContext";
 
 type Phase = "pre" | "in" | "post";

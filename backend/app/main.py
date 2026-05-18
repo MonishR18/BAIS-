@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import auth, upload, analysis, dashboard, model, reports, mitigate
+from app.api.routes import auth, upload, analysis, dashboard, model, reports, mitigate, dataset_intelligence
 
 app = FastAPI(title="BAIS - Bias Analysis & Mitigation System", version="2.0.0")
 
@@ -19,6 +19,7 @@ app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboar
 app.include_router(model.router, prefix="/api/v1/model", tags=["Model Explainability"])
 app.include_router(reports.router, prefix="/api/v1/reports", tags=["Reports"])
 app.include_router(mitigate.router, prefix="/api/v1/mitigate", tags=["Mitigation"])
+app.include_router(dataset_intelligence.router, prefix="/api/v1/intelligence", tags=["Intelligence"])
 
 @app.on_event("startup")
 async def on_startup():

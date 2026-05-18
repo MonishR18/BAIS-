@@ -63,7 +63,7 @@ class BiasEngine:
 
         has_pred = prediction_column in df.columns
         selected_cols = [sensitive_attribute, target_column]
-        if has_pred:
+        if has_pred and prediction_column not in selected_cols:
             selected_cols.append(prediction_column)
 
         # Drop missing sensitive/target values

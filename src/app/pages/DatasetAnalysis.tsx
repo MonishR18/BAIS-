@@ -6,7 +6,7 @@ import {
   Upload, Database, AlertTriangle, CheckCircle2, Eye, Filter, Download, Info, ChevronDown,
 } from "lucide-react";
 import { useAppContext } from "../context/AppContext";
-import { analyzeDataset, uploadDataset, type AnalyzeResponse } from "../../api/client";
+import { analyzeDataset, uploadDataset, analyzeDatasetIntelligence, type AnalyzeResponse } from "../../api/client";
 
 const COLORS = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
 
@@ -69,7 +69,13 @@ const typeColors: Record<string, string> = {
 };
 
 export function DatasetAnalysis() {
-  const { datasetId, setDatasetId, fileName, setFileName } = useAppContext();
+  const { 
+    datasetId, setDatasetId, 
+    fileName, setFileName,
+    targetColumn, setTargetColumn,
+    sensitiveAttribute, setSensitiveAttribute,
+    predictionColumn, setPredictionColumn
+  } = useAppContext();
   const [activeTab, setActiveTab] = useState<"overview" | "distribution" | "bias">("overview");
   const [dragOver, setDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -77,6 +83,7 @@ export function DatasetAnalysis() {
   const [loading, setLoading] = useState<"idle" | "upload" | "analyze">("idle");
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [intelligence, setIntelligence] = useState<any>(null);
 
   async function handleUpload() {
     if (!selectedFile) return;
@@ -101,9 +108,9 @@ export function DatasetAnalysis() {
     try {
       const res = await analyzeDataset({
         dataset_id: datasetId,
-        target_column: "label",
-        sensitive_attribute: "gender",
-        prediction_column: "prediction",
+        target_column: targetColumn,
+        sensitive_attribute: sensitiveAttribute,
+        prediction_column: predictionColumn,
       });
       setAnalysis(res);
     } catch (e) {
@@ -115,13 +122,32 @@ export function DatasetAnalysis() {
 
   const handleUploadFile = async (file: File) => {
     setIsUploading(true);
+    setError(null);
+    setIntelligence(null);
     try {
+      // 1. Upload the file normally
       const res = await uploadDataset(file);
       setDatasetId(res.dataset_id);
       setFileName(res.filename || file.name);
-    } catch (err) {
+
+      // 2. Run the intelligence engine to automatically understand the dataset
+      const intelRes = await analyzeDatasetIntelligence(file);
+      setIntelligence(intelRes);
+      
+      // Auto-fill the inputs based on intelligence!
+      if (intelRes.target_analysis?.predicted_target) {
+        setTargetColumn(intelRes.target_analysis.predicted_target);
+      }
+      if (intelRes.sensitive_attributes && intelRes.sensitive_attributes.length > 0) {
+        setSensitiveAttribute(intelRes.sensitive_attributes[0].attribute);
+      }
+      
+      // Clear any errors that might have been triggered by premature clicks
+      setError(null);
+      
+    } catch (err: any) {
       console.error(err);
-      alert("Failed to upload dataset.");
+      setError(err.message || "Failed to upload dataset.");
     } finally {
       setIsUploading(false);
     }
@@ -172,21 +198,53 @@ export function DatasetAnalysis() {
 
             <button
               onClick={handleUpload}
-              disabled={!selectedFile || loading !== "idle"}
+              disabled={!selectedFile || loading !== "idle" || isUploading}
               className="text-sm text-white bg-blue-600 disabled:opacity-50 px-3 py-1.5 rounded-lg"
             >
-              {loading === "upload" ? "Uploading..." : "Upload"}
+              {loading === "upload" || isUploading ? "Uploading..." : "Upload"}
             </button>
 
             <button
               onClick={handleAnalyze}
-              disabled={!datasetId || loading !== "idle"}
+              disabled={!datasetId || loading !== "idle" || isUploading}
               className="text-sm text-white bg-violet-600 disabled:opacity-50 px-3 py-1.5 rounded-lg"
             >
               {loading === "analyze" ? "Analyzing..." : "Analyze"}
             </button>
           </div>
         </div>
+
+        {datasetId && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 bg-gray-950 p-4 rounded-lg border border-gray-800">
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Target Column</label>
+              <input 
+                type="text" 
+                value={targetColumn} 
+                onChange={(e) => setTargetColumn(e.target.value)} 
+                className="w-full bg-gray-900 border border-gray-700 text-white text-sm rounded px-2 py-1 outline-none focus:border-violet-500" 
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Sensitive Attribute</label>
+              <input 
+                type="text" 
+                value={sensitiveAttribute} 
+                onChange={(e) => setSensitiveAttribute(e.target.value)} 
+                className="w-full bg-gray-900 border border-gray-700 text-white text-sm rounded px-2 py-1 outline-none focus:border-violet-500" 
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Prediction Column</label>
+              <input 
+                type="text" 
+                value={predictionColumn} 
+                onChange={(e) => setPredictionColumn(e.target.value)} 
+                className="w-full bg-gray-900 border border-gray-700 text-white text-sm rounded px-2 py-1 outline-none focus:border-violet-500" 
+              />
+            </div>
+          </div>
+        )}
 
         {datasetId && (
           <p className="text-xs text-gray-400 mt-3">
@@ -198,25 +256,69 @@ export function DatasetAnalysis() {
           <p className="text-xs text-red-300 mt-3 break-words">{error}</p>
         )}
 
-        {analysis && (
+        {intelligence && (
+          <div className="mt-4 bg-violet-900/20 border border-violet-500/30 rounded-xl p-4">
+            <h3 className="text-violet-300 font-semibold mb-2 flex items-center gap-2">
+              <Database className="w-4 h-4" /> AI Dataset Intelligence
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-300">
+              <div>
+                <p><strong className="text-gray-400">Target Prediction:</strong> {intelligence.target_analysis.predicted_target} <span className="text-violet-400">({Math.round(intelligence.target_analysis.confidence * 100)}% confidence)</span></p>
+                <p className="text-xs text-gray-500 mt-1">{intelligence.target_analysis.reasoning}</p>
+              </div>
+              <div>
+                <p><strong className="text-gray-400">Bias Risk:</strong> <span className={intelligence.bias_risk_analysis.risk_level === 'HIGH' ? 'text-red-400' : 'text-amber-400'}>{intelligence.bias_risk_analysis.risk_level} ({intelligence.bias_risk_analysis.risk_score}/100)</span></p>
+                <ul className="list-disc pl-4 text-xs mt-1 text-gray-400">
+                  {intelligence.bias_risk_analysis.issues.map((issue: string, i: number) => <li key={i}>{issue}</li>)}
+                </ul>
+              </div>
+            </div>
+            
+            {intelligence.sensitive_attributes && intelligence.sensitive_attributes.length > 0 && (
+              <div className="mt-3 text-sm">
+                <strong className="text-gray-400">Detected Sensitive Attributes:</strong>
+                <div className="flex gap-2 mt-1">
+                  {intelligence.sensitive_attributes.map((attr: any, i: number) => (
+                    <span key={i} className="px-2 py-1 bg-red-500/10 text-red-300 border border-red-500/20 rounded-md text-xs" title={attr.explanation}>
+                      {attr.attribute} ({attr.sensitivity_level} risk)
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {intelligence.preprocessing_recommendations && intelligence.preprocessing_recommendations.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-violet-500/20 text-sm">
+                <strong className="text-gray-400">Preprocessing Recommendations:</strong>
+                <ul className="list-disc pl-4 text-xs mt-1 text-gray-400">
+                  {intelligence.preprocessing_recommendations.map((rec: any, i: number) => (
+                    <li key={i}><span className="text-violet-300">{rec.step}:</span> {rec.reason}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {analysis && analysis.metrics && (
           <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="bg-gray-950 border border-gray-800 rounded-xl p-4">
               <p className="text-xs text-gray-400">Bias Detected</p>
-              <p className={analysis.bias_detected ? "text-red-400 text-lg" : "text-emerald-400 text-lg"}>
-                {analysis.bias_detected ? "Yes" : "No"}
+              <p className={analysis.metrics.bias_detected ? "text-red-400 text-lg" : "text-emerald-400 text-lg"}>
+                {analysis.metrics.bias_detected ? "Yes" : "No"}
               </p>
             </div>
             <div className="bg-gray-950 border border-gray-800 rounded-xl p-4">
               <p className="text-xs text-gray-400">Demographic Parity (diff)</p>
-              <p className="text-white text-lg">{analysis.demographic_parity.difference.toFixed(3)}</p>
+              <p className="text-white text-lg">{analysis.metrics.demographic_parity.difference.toFixed(3)}</p>
             </div>
             <div className="bg-gray-950 border border-gray-800 rounded-xl p-4">
               <p className="text-xs text-gray-400">Equal Opportunity (diff)</p>
-              <p className="text-white text-lg">{analysis.equal_opportunity.difference.toFixed(3)}</p>
+              <p className="text-white text-lg">{analysis.metrics.equal_opportunity.difference.toFixed(3)}</p>
             </div>
             <div className="bg-gray-950 border border-gray-800 rounded-xl p-4">
               <p className="text-xs text-gray-400">Disparate Impact (min ratio)</p>
-              <p className="text-white text-lg">{analysis.disparate_impact.min_ratio.toFixed(3)}</p>
+              <p className="text-white text-lg">{analysis.metrics.disparate_impact.min_ratio.toFixed(3)}</p>
             </div>
           </div>
         )}

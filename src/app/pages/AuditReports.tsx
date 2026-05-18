@@ -4,7 +4,7 @@ import {
   Shield, Eye, Filter, FileDown,
 } from "lucide-react";
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } from "recharts";
-import { fetchReports } from "../../lib/api";
+import { fetchReports } from "../../api/client";
 
 const statusConfig: Record<string, { color: string; bg: string; icon: any; label: string }> = {
   critical: { color: "text-red-400", bg: "bg-red-500/10 border-red-500/30", icon: <XCircle className="w-4 h-4 text-red-400" />, label: "Critical" },

@@ -9,7 +9,7 @@ import {
   Database, FileText, Zap, Activity, ArrowRight, Clock,
 } from "lucide-react";
 import { Link } from "react-router";
-import { fetchDashboardStats } from "../../lib/api";
+import { fetchDashboardStats } from "../../api/client";
 
 const statusConfig: Record<string, { label: string; color: string; bg: string }> = {
   critical: { label: "Critical", color: "text-red-400", bg: "bg-red-500/10 border-red-500/30" },

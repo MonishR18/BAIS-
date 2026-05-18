@@ -4,7 +4,7 @@ import {
   LineChart, Line, ReferenceLine,
 } from "recharts";
 import { Brain, Info, Eye, TrendingUp, AlertTriangle } from "lucide-react";
-import { fetchModelExplanation } from "../../lib/api";
+import { fetchModelExplanation } from "../../api/client";
 
 type AnalysisTab = "shap-global" | "shap-local" | "lime" | "pdp" | "counterfactual";
 

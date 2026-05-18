@@ -5,7 +5,7 @@ import {
 } from "recharts";
 import { CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
 import { useAppContext } from "../context/AppContext";
-import { analyzeDataset } from "../../lib/api";
+import { analyzeDataset } from "../../api/client";
 
 type MetricTab = "dp" | "eo" | "eodds" | "di";
 
@@ -89,24 +89,24 @@ export function FairnessMetrics() {
   }
 
   // Derived metrics for UI
-  const dpDifference = analysis.demographic_parity.difference;
+  const dpDifference = analysis.metrics.demographic_parity.difference;
   const dpStatus = dpDifference <= 0.05 ? "pass" : dpDifference <= 0.1 ? "warn" : "fail";
-  const demographicParityData = Object.entries(analysis.demographic_parity.by_group).map(([group, rate]) => ({
+  const demographicParityData = Object.entries(analysis.metrics.demographic_parity.by_group).map(([group, rate]) => ({
     group,
     rate: (rate as number) * 100,
   }));
 
-  const eoDifference = analysis.equal_opportunity.difference;
+  const eoDifference = analysis.metrics.equal_opportunity.difference;
   const eoStatus = eoDifference <= 0.05 ? "pass" : eoDifference <= 0.1 ? "warn" : "fail";
-  const equalOpportunityData = Object.entries(analysis.equal_opportunity.by_group).map(([group, tpr]) => ({
+  const equalOpportunityData = Object.entries(analysis.metrics.equal_opportunity.by_group).map(([group, tpr]) => ({
     group,
     tpr: tpr as number,
   }));
 
-  const diMinRatio = analysis.disparate_impact.min_ratio;
+  const diMinRatio = analysis.metrics.disparate_impact.min_ratio;
   const diStatus = diMinRatio >= 0.8 ? "pass" : "fail";
-  const disparateImpactData = Object.entries(analysis.disparate_impact.ratios).filter(([g, _]) => g !== analysis.disparate_impact.reference_group).map(([group, ratio]) => ({
-    pair: `${group}/${analysis.disparate_impact.reference_group}`,
+  const disparateImpactData = Object.entries(analysis.metrics.disparate_impact.ratios).filter(([g, _]) => g !== analysis.metrics.disparate_impact.reference_group).map(([group, ratio]) => ({
+    pair: `${group}/${analysis.metrics.disparate_impact.reference_group}`,
     ratio: ratio as number,
     threshold: 0.80,
   }));
